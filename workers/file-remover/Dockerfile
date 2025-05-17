@@ -1,38 +1,20 @@
-FROM python:3.9-slim as builder
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create and activate virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+FROM python:3.9-slim
 
 # Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-FROM python:3.9-slim
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Copy the application code with ownership set to the non-root user
+COPY --chown=appuser:appgroup handler.py .
 
-# Set working directory
-WORKDIR /app
-
-# Copy application code
-COPY . .
+# Switch to the non-root user
+USER appuser
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Run as non-root user
-RUN useradd -m worker
-USER worker
-
 # Set entrypoint
-CMD ["python", "-m", "runpod.serverless.worker"]
+CMD ["python", "-m", "handler"]
