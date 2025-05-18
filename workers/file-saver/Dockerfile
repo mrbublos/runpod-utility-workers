@@ -19,4 +19,4 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV USER_DATA_FOLDER=/user_data
 
 # Set the entrypoint
-CMD ["python", "-m", "handler"]
+CMD ["python", "-u", "handler.py"]
