@@ -1,52 +1,46 @@
 import os
-from pathlib import Path
-from typing import Dict
+import runpod
+from runpod.serverless.utils.rp_validator import validate
+from runpod.serverless.modules.rp_logger import RunPodLogger
+from schema import INPUT_SCHEMA
+import shutil
 
-from loguru import logger
-from utils.validation import RemovalRequest
-from utils.security import is_safe_path, check_permissions
-from utils.file_ops import remove_path
+logger = RunPodLogger()
 
-async def handler(event: Dict) -> Dict:
-    """
-    RunPod handler function for file/folder removal.
-    
-    Args:
-        event: Dictionary containing the job parameters
-        
-    Returns:
-        dict: Response containing success status and metadata
-    """
+def handler(event):
+    job_id = event['id']
+
+    validated_input = validate(event['input'], INPUT_SCHEMA)
+
+    folder = os.getenv("USER_DATA_FOLDER")
+
+    if 'errors' in validated_input:
+        return {
+            'error': validated_input['errors']
+        }
+
+    input = validated_input["validated_input"]
+    user_id = input['user_id']
+
     try:
-        # Validate input
-        request = RemovalRequest(**event["input"])
-        target_path = request.get_full_path()
-        
-        # Security checks
-        if not is_safe_path(target_path, request.allowed_root):
-            return {
-                "error": "Invalid or unsafe path specified",
-                "success": False
-            }
-            
-        if not check_permissions(target_path):
-            return {
-                "error": "Insufficient permissions",
-                "success": False
-            }
-            
-        # Perform removal
-        metadata = await remove_path(target_path, request.recursive)
-        
+        folder_path = f"{folder}/{user_id}"
+        if os.path.exists(folder_path):
+            shutil.rmtree(folder_path)
+
         return {
-            "success": True,
-            "removed_path": str(target_path),
-            "metadata": metadata
+            'job_id': job_id,
+            'user_id': user_id,
+            'success': True,
         }
-        
     except Exception as e:
-        logger.exception("Error in file removal handler")
+        logger.error(f"Error removing user data for {user_id}: {e}", job_id)
         return {
-            "error": str(e),
-            "success": False
+            "success": False,
         }
+
+if __name__ == "__main__":
+    runpod.serverless.start(
+        {
+            'handler': handler
+        }
+    )

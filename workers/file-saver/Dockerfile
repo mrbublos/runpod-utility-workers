@@ -4,7 +4,7 @@ FROM python:3.10-slim
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN addgroup --system appgroup && adduser --system --group appgroup
 
 # Copy the application code with ownership set to the non-root user
 COPY --chown=appuser:appgroup handler.py schema.py .
