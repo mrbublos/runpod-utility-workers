@@ -16,5 +16,7 @@ USER appuser
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
+ENV USER_DATA_FOLDER=/user_data
+
 # Set the entrypoint
 CMD ["python", "-m", "handler"]

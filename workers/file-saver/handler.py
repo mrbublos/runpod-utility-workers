@@ -1,77 +1,51 @@
 import os
-import json
-from loguru import logger
-from utils.validation import validate_input, validate_path
-from utils.file_ops import decode_and_save_file, compress_file
-from utils.metadata import generate_metadata
+import runpod
+from runpod.serverless.utils.rp_validator import validate
+from runpod.serverless.modules.rp_logger import RunPodLogger
+from schema import INPUT_SCHEMA
+import base64
+import uuid
+
+logger = RunPodLogger()
 
 def handler(event):
-    """
-    Main handler function for the file saver worker.
-    
-    Args:
-        event (dict): The event payload containing the request parameters
-        
-    Returns:
-        dict: Response containing success status, file path, metadata, and any error messages
-    """
-    try:
-        # Validate input
-        input_data = validate_input(event)
-        
-        # Validate path
-        destination_path = validate_path(
-            input_data.destination_folder, 
-            input_data.filename
-        )
-        
-        # Decode and save file
-        file_path = decode_and_save_file(
-            destination_path,
-            input_data.file_data
-        )
-        
-        # Generate metadata
-        metadata = generate_metadata(file_path)
-        
-        # Compress if requested
-        if input_data.compress:
-            file_path = compress_file(file_path)
-            metadata["compressed"] = True
-        else:
-            metadata["compressed"] = False
-        
-        # Return success response
+    job_id = event['id']
+
+    validated_input = validate(event['input'], INPUT_SCHEMA)
+
+    if 'errors' in validated_input:
         return {
-            "success": True,
-            "file_path": file_path,
-            "metadata": metadata,
-            "error": None
+            'error': validated_input['errors']
         }
-        
+
+    input = validated_input["validated_input"]
+    user_id = input['user_id']
+
+    try:
+        extension = input['extension']
+        data = base64.b64decode(input['data'])
+        file_name = str(uuid.uuid4())
+        folder = os.getenv("USER_DATA_FOLDER")
+        file_path = f"{folder}/{user_id}/{file_name}.{extension}"
+
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "wb") as file:
+            file.write(data)
+
+        return {
+            'job_id': job_id,
+            'user_id': user_id,
+            'success': True,
+        }
     except Exception as e:
-        # Log error
-        logger.error(f"Error processing request: {str(e)}")
-        
-        # Return error response
+        logger.error(f"Error saving file for {user_id}: {e}", job_id)
         return {
             "success": False,
-            "file_path": None,
-            "metadata": None,
-            "error": str(e)
         }
 
 if __name__ == "__main__":
-    # Configure logger
-    logger.add("file_saver.log", rotation="10 MB")
-    
-    # Example usage
-    test_event = {
-        "destination_folder": "/tmp/test",
-        "filename": "test.txt",
-        "file_data": "SGVsbG8gV29ybGQh",  # "Hello World!" in Base64
-        "compress": False
-    }
-    
-    result = handler(test_event)
-    print(json.dumps(result, indent=2))
+    runpod.serverless.start(
+        {
+            'handler': handler
+        }
+    )
