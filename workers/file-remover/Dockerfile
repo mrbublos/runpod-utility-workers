@@ -17,4 +17,4 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # Set entrypoint
-CMD ["python", "-m", "handler"]
+CMD ["python", "-u", "handler.py"]
